@@ -1,7 +1,7 @@
 ## Amazon EKS cross-az traffic visibility
 
 ,,,The project implements an Amazon EKS Cross-AZ Pod to Pod network bytes visibility
-It is based on this (detailed) blog: [https://aws.amazon.com/blogs/containers/getting-visibility-into-your-amazon-eks-cross-az-pod-to-pod-network-bytes/](https://aws.amazon.com/blogs/containers/getting-visibility-into-your-amazon-eks-cross-az-pod-to-pod-network-bytes/)
+sssIt is based on this (detailed) blog: [https://aws.amazon.com/blogs/containers/getting-visibility-into-your-amazon-eks-cross-az-pod-to-pod-network-bytes/](https://aws.amazon.com/blogs/containers/getting-visibility-into-your-amazon-eks-cross-az-pod-to-pod-network-bytes/)
 
 ## Solution overview
 
