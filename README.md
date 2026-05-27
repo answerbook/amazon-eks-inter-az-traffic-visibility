@@ -132,6 +132,19 @@ source .venv/bin/activate
 ./scripts/install-deps.sh
 ```
 
+#### Alternative: using uv
+
+If you prefer [uv](https://docs.astral.sh/uv/), the repo ships a `pyproject.toml` and `uv.lock` pinning the same dependency set. `uv sync` covers the project deps; the CDK CLI and the Lambda layer build still need to run separately.
+
+```
+cd ~/amazon-eks-inter-az-traffic-visibility
+uv sync
+source .venv/bin/activate
+npm install
+uv pip install -r pod_metadata_extractor/runtime/requirements.txt \
+  --target pod_metadata_extractor/requirements_layer/python/
+```
+
 Our AWS CDK stack requires the VPC ID and the Amazon EKS cluster name
 
 ```
