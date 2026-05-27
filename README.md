@@ -160,6 +160,8 @@ npx cdk bootstrap
 npx cdk deploy CdkEksInterAzVisibility --parameters eksClusterName=$CLUSTERNAME --parameters eksVpcId=$VPCID
 ```
 
+> **Note:** `cdk bootstrap` will fail with `AWS::EarlyValidation::ResourceExistenceCheck` if the bootstrap S3 bucket (`cdk-hnb659fds-assets-<account-id>-<region>`) already exists in the target account/region from a previous bootstrap attempt. If you're certain no deployed stacks depend on it, delete the bucket (and any other orphaned `cdk-hnb659fds-*` resources: ECR repo, IAM roles, KMS alias, SSM parameter `/cdk-bootstrap/hnb659fds/version`) and re-run `cdk bootstrap`.
+
 #### Authorise the AWS Lambda function (k8s client)
 
 Lets get the **Pod Metadata Extractor** **IAM Role** 
