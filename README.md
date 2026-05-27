@@ -224,6 +224,88 @@ SELECT * FROM "athena-results-table" ORDER BY "timestamp" DESC, "bytes_transfere
 
 Examine the results!
 
+#### Suggested query: cross-AZ traffic by `namespace/app/component` (last 2 hours)
+
+Joins VPC flow logs against the pods table on both source and destination IPs, filters to egress flows where the destination is in a different AZ, and groups bytes by minute and by `namespace/app/component` pair. Adjust the `srcaz`/`dstaz` `CASE` mappings if you are not in `us-east-1` — they translate AWS internal AZ IDs (e.g. `use1-az1`) to user-facing names (e.g. `us-east-1a`).
+
+```sql
+WITH
+  ip_addresses_and_az_mapping AS (
+    SELECT DISTINCT pkt_srcaddr AS ipaddress, az_id
+    FROM "vpc-flow-logs-table"
+    WHERE flow_direction = 'egress'
+      AND from_unixtime("vpc-flow-logs-table".start)
+          > (CURRENT_TIMESTAMP - (120 * interval '1' minute))
+  ),
+  egress_flows_of_pods_with_status AS (
+    SELECT
+      "pods-table".name AS srcpodname,
+      "pods-table".namespace AS srcpodnamespace,
+      "pods-table".app AS srcpodapp,
+      "pods-table".component AS srcpodcomp,
+      pkt_srcaddr AS srcaddr,
+      pkt_dstaddr AS dstaddr,
+      "vpc-flow-logs-table".az_id AS srcazid,
+      bytes,
+      start
+    FROM "vpc-flow-logs-table"
+    INNER JOIN "pods-table"
+      ON "vpc-flow-logs-table".pkt_srcaddr = "pods-table".ip
+    WHERE flow_direction = 'egress'
+      AND from_unixtime("vpc-flow-logs-table".start)
+          > (CURRENT_TIMESTAMP - (120 * interval '1' minute))
+  ),
+  cross_az_traffic_by_pod AS (
+    SELECT
+      srcaddr,
+      srcpodname,
+      srcpodnamespace,
+      srcpodapp,
+      srcpodcomp,
+      dstaddr,
+      "pods-table".name AS dstpodname,
+      "pods-table".namespace AS dstpodnamespace,
+      "pods-table".app AS dstpodapp,
+      "pods-table".component AS dstpodcomp,
+      srcazid,
+      ip_addresses_and_az_mapping.az_id AS dstazid,
+      bytes,
+      start
+    FROM egress_flows_of_pods_with_status
+    INNER JOIN "pods-table" ON dstaddr = "pods-table".ip
+    LEFT JOIN ip_addresses_and_az_mapping ON dstaddr = ipaddress
+    WHERE ip_addresses_and_az_mapping.az_id != srcazid
+  )
+SELECT
+  date_trunc('MINUTE', from_unixtime(start)) AS time,
+  CASE srcazid
+    WHEN 'use1-az1' THEN 'us-east-1a'
+    WHEN 'use1-az2' THEN 'us-east-1b'
+    WHEN 'use1-az4' THEN 'us-east-1c'
+    ELSE srcazid
+  END AS srcaz,
+  CASE dstazid
+    WHEN 'use1-az1' THEN 'us-east-1a'
+    WHEN 'use1-az2' THEN 'us-east-1b'
+    WHEN 'use1-az4' THEN 'us-east-1c'
+    ELSE dstazid
+  END AS dstaz,
+  CONCAT(srcpodnamespace, '/', srcpodapp, '/', srcpodcomp,
+         ' -> ',
+         dstpodnamespace, '/', dstpodapp, '/', dstpodcomp) AS inter_az_traffic,
+  SUM(bytes) AS total_bytes
+FROM cross_az_traffic_by_pod
+WHERE srcpodapp != '<none>' AND dstpodapp != '<none>'
+GROUP BY
+  date_trunc('MINUTE', from_unixtime(start)),
+  srcazid,
+  dstazid,
+  CONCAT(srcpodnamespace, '/', srcpodapp, '/', srcpodcomp,
+         ' -> ',
+         dstpodnamespace, '/', dstpodapp, '/', dstpodcomp)
+ORDER BY time DESC, total_bytes DESC;
+```
+
 ## Non-Interactive flow of the solution
 
 The CDK stack will also deploy a step functions workflow that will run the entire flow in a batch manner (hourly).
