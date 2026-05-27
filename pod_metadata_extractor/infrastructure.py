@@ -96,7 +96,8 @@ class PodMetaDataExtractor(Construct):
                 str(pathlib.Path(__file__).parent.joinpath("runtime").resolve())
             ),
             handler="get_pods.lambda_handler",
-            timeout=Duration.minutes(1),
+            timeout=Duration.minutes(2),
+            memory_size=1024,
             environment={
                 "REGION": Stack.of(self).region,
                 "CLUSTER_NAME": eks_cluster.cluster_name,

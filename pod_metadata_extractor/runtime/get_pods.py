@@ -145,6 +145,8 @@ def fetch_pods_for_label(
     pods_info = []
 
     for pod in pods.items:
+        if pod.spec.host_network:
+            continue
         conditions = pod.status.conditions
         if not conditions:
             continue
@@ -175,11 +177,59 @@ def fetch_pods_for_label(
     return pods_info
 
 
+def fetch_host_network_node_rows(
+    nodes_azs: dict[str, str],
+) -> list[dict[str, str]]:
+    # Host-network pods share the node's primary IP, so flow logs cannot
+    # distinguish which pod sent the bytes. Emit one synthetic row per node
+    # instead of letting the join pick an arbitrary pod (e.g. efs-csi-node).
+    pods = v1.list_pod_for_all_namespaces(watch=False)
+
+    rows: list[dict[str, str]] = []
+    seen_nodes: set[str] = set()
+
+    for pod in pods.items:
+        if not pod.spec.host_network:
+            continue
+        if not pod.status.pod_ip:
+            continue
+        node = pod.spec.node_name
+        if node in seen_nodes:
+            continue
+        seen_nodes.add(node)
+
+        conditions = pod.status.conditions or []
+        ready_condition = next(
+            (c for c in conditions if getattr(c, "type", None) == "Ready"),
+            None,
+        )
+        creation_time = (
+            ready_condition.last_transition_time.strftime(TIME_DATE_FORMAT)
+            if ready_condition
+            else ""
+        )
+
+        rows.append(
+            {
+                "name": node,
+                "namespace": "host-network",
+                "ip": pod.status.pod_ip,
+                "app": "host-network",
+                "component": node,
+                "creation_time": creation_time,
+                "node": node,
+                "az": nodes_azs.get(node, "<none>"),
+            }
+        )
+
+    return rows
+
+
 def get_pods_info(nodes_azs: dict[str, str]) -> dict[str, str]:
     """
     Requests pods metadata from EKS.
     """
-    pods_info = []
+    pods_info = fetch_host_network_node_rows(nodes_azs)
     label_pairs = [
         ("app", "component"),
         ("app.kubernetes.io/name", "app.kubernetes.io/part-of"),
