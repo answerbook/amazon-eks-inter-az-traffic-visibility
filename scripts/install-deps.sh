@@ -21,8 +21,15 @@ set -o verbose
 # Install local CDK CLI version
 npm install
 
+# Use uv when available (uv-created venvs don't include pip), otherwise pip
+if command -v uv >/dev/null 2>&1; then
+  PIP="uv pip"
+else
+  PIP="python3 -m pip"
+fi
+
 # Install project dependencies
-pip install -r pod_metadata_extractor/runtime/requirements.txt -r requirements.txt
+$PIP install -r pod_metadata_extractor/runtime/requirements.txt -r requirements.txt
 
 # Install runtime dependencies for pod_metadata_extractor lambda layer
-pip install -r pod_metadata_extractor/runtime/requirements.txt --target pod_metadata_extractor/requirements_layer/python/
+$PIP install -r pod_metadata_extractor/runtime/requirements.txt --target pod_metadata_extractor/requirements_layer/python/
